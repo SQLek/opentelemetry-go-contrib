@@ -57,7 +57,9 @@ var (
 // Jaeger format:
 //
 // uber-trace-id: {trace-id}:{span-id}:{parent-span-id}:{flags}
-type Jaeger struct{}
+type Jaeger struct {
+	HeaderName string
+}
 
 var _ propagation.TextMapPropagator = &Jaeger{}
 
@@ -78,13 +80,22 @@ func (jaeger Jaeger) Inject(ctx context.Context, carrier propagation.TextMapCarr
 		headers = append(headers, fmt.Sprintf("%x", flagsNotSampled))
 	}
 
-	carrier.Set(jaegerHeader, strings.Join(headers, separator))
+	headerName := jaegerHeader
+	if jaeger.HeaderName != "" {
+		headerName = jaeger.HeaderName
+	}
+	carrier.Set(headerName, strings.Join(headers, separator))
 }
 
 // Extract extracts a context from the carrier if it contains Jaeger headers.
 func (jaeger Jaeger) Extract(ctx context.Context, carrier propagation.TextMapCarrier) context.Context {
+	headerName := jaegerHeader
+	if jaeger.HeaderName != "" {
+		headerName = jaeger.HeaderName
+	}
+
 	// extract tracing information
-	if h := carrier.Get(jaegerHeader); h != "" {
+	if h := carrier.Get(headerName); h != "" {
 		ctx, sc, err := extract(ctx, h)
 		if err == nil && sc.IsValid() {
 			return trace.ContextWithRemoteSpanContext(ctx, sc)
@@ -157,5 +168,10 @@ func extract(ctx context.Context, headerVal string) (context.Context, trace.Span
 }
 
 func (jaeger Jaeger) Fields() []string {
-	return []string{jaegerHeader}
+	headerName := jaegerHeader
+	if jaeger.HeaderName != "" {
+		headerName = jaeger.HeaderName
+	}
+
+	return []string{headerName}
 }
